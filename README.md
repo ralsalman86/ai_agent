@@ -22,7 +22,7 @@ pip install -r requirements.txt
 ## Usage
 1. Start the Streamlit app:
    ```bash
-   streamlit run app.py
+   streamlit run ai_agent_t.py
    ```
 2. Enter the URL of a website to scrape.
 3. Select the desired **Ollama model**, **RAG method**, and **embedding model**.
