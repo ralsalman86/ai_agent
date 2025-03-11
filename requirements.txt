@@ -1,0 +1,9 @@
+streamlit
+requests
+pydantic
+firecrawl
+sentence-transformers
+rank-bm25
+langchain
+bs4
+faiss-cpu
