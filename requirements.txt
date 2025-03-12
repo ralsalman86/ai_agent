@@ -8,3 +8,4 @@ langchain
 bs4
 faiss-cpu
 groq
+langchain-community
