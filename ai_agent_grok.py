@@ -17,12 +17,13 @@ from langchain.embeddings import HuggingFaceEmbeddings
 groq_api_key = "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"
 firecrawl_api_key = "fc-f5c2f3300b074f1db5e8ca285e73618f"
 
+# Default System Prompt
+default_system_prompt = "You are a helpful AI assistant. Provide accurate and concise responses."
 
 # Function to fetch available Groq models
 def fetch_groq_models():
     return ['deepseek-r1-distill-qwen-32b', 'llama-3.1-8b-instant',  'deepseek-r1-distill-llama-70b',
             'distil-whisper-large-v3-en', '']
-
 
 # Firecrawl API function
 def scrape_website(url):
@@ -34,17 +35,14 @@ def scrape_website(url):
     else:
         return extract_text_from_html(scrape_result['html'])
 
-
 # Function to extract text from HTML
 def extract_text_from_html(html_content):
     soup = BeautifulSoup(html_content, "html.parser")
     return soup.get_text(separator=' ')
 
-
 # Function to clean URLs from markdown content
 def clean_urls(content):
     return re.sub(r'http\S+', '', content)
-
 
 # Function to chunk text
 def chunk_text(text, chunk_size=500, chunk_overlap=100):
@@ -53,14 +51,12 @@ def chunk_text(text, chunk_size=500, chunk_overlap=100):
     )
     return splitter.split_text(text)
 
-
 # Function to retrieve relevant context using BM25
 def bm25_retrieve(query, content_chunks):
     tokenized_chunks = [chunk.split() for chunk in content_chunks]
     bm25 = BM25Okapi(tokenized_chunks)
     top_chunks = bm25.get_top_n(query.split(), content_chunks, n=3)
     return " ".join(top_chunks)
-
 
 # Function to retrieve relevant context using embeddings
 def embedding_retrieve(query, content_chunks, embed_model):
@@ -70,7 +66,6 @@ def embedding_retrieve(query, content_chunks, embed_model):
     top_indices = dense_scores.argsort(descending=True)[:3]
     return " ".join([content_chunks[i] for i in top_indices])
 
-
 # Function to retrieve relevant context using FAISS
 def faiss_retrieve(query, content_chunks, embed_model):
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
@@ -78,20 +73,18 @@ def faiss_retrieve(query, content_chunks, embed_model):
     docs = vectordb.similarity_search(query, k=3)
     return " ".join([doc.page_content for doc in docs])
 
-
 # Function to interact with Groq API
-def chat_with_groq(prompt, context, model='llama3-8b'):
+def chat_with_groq(prompt, context, model, system_prompt):
     client = Groq(api_key=groq_api_key)
     chat_completion = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": "You are a helpful AI assistant."},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
             {"role": "assistant", "content": context}
         ],
         model=model,
     )
     return chat_completion.choices[0].message.content
-
 
 # Streamlit App
 def main():
@@ -102,6 +95,8 @@ def main():
         st.session_state.scraped_content = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
+    if "system_prompt" not in st.session_state:
+        st.session_state.system_prompt = default_system_prompt
 
     available_models = fetch_groq_models()
     model_choice = st.selectbox("Select Groq Model:", available_models if available_models else ["llama3-8b"])
@@ -113,13 +108,16 @@ def main():
 
     url = st.text_input('Enter the URL to scrape:')
 
+    # Editable system prompt
+    st.write("### System Prompt (Editable)")
+    st.session_state.system_prompt = st.text_area("System Prompt:", st.session_state.system_prompt, height=100)
+
     if st.button('Scrape and Chat'):
         if not url:
             st.error('Please provide a URL.')
         else:
             with st.spinner('Scraping website...'):
                 content = scrape_website(url)
-
             if content:
                 st.session_state.scraped_content = clean_urls(content)
                 st.session_state.chat_history = []
@@ -127,7 +125,7 @@ def main():
 
     if st.session_state.scraped_content:
         st.write('### Scraped Content')
-        st.text_area('Scraped Content:', st.session_state.scraped_content, height=200, disabled=True)
+        st.text_area('Scraped Content:', st.session_state.scraped_content, height=200)
         st.write('---')
         st.write('## Chat with the Model')
 
@@ -149,10 +147,9 @@ def main():
                 elif rag_method == "FAISS":
                     content_chunks = chunk_text(context)
                     context = faiss_retrieve(user_input, content_chunks, embedding_model)
-                response = chat_with_groq(user_input, context, model_choice)
+                response = chat_with_groq(user_input, context, model_choice, st.session_state.system_prompt)
                 st.session_state.chat_history.append(("assistant", response))
             st.rerun()
-
 
 if __name__ == '__main__':
     main()
